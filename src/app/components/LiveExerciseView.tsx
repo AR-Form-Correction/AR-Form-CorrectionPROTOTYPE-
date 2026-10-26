@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMediaPipePose, type PoseLandmarks } from '../hooks/useMediaPipePose';
-import { comparePose, detectFormIssues, extractAngles, type FormIssues, type JointName } from '../utils/poseComparison';
+import { comparePose, detectFormIssues, extractAngles, type FormIssues } from '../utils/poseComparison';
 import { CameraFeed, type CameraFeedHandle } from './CameraFeed';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
 import { PositionGuideFrame } from './PositionGuideFrame';
-import { StickFigure } from './StickFigure';
+import { StickFigure, type JointName } from './StickFigure';
 import { Badge } from './ui/badge';
 import { X, Camera, Volume2, Circle, ScanLine, SwitchCamera } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { LivePoseOverlay } from './LivePoseOverlay';
 
 // Text-to-speech feedback with queue to prevent overlap
@@ -108,8 +108,10 @@ function AudioFeedbackIndicator({ message, type }: { message: string; type: 'cor
   );
 }
 
+type ExerciseType = 'pushup' | 'plank' | 'squat' | 'situp';
+
 interface LiveExerciseViewProps {
-  exerciseId: string;
+  exerciseId: ExerciseType;
   targetReps: number;
   onComplete: (sessionData: ExerciseSessionData) => void;
   onCancel: () => void;
@@ -117,7 +119,7 @@ interface LiveExerciseViewProps {
 
 // Session data to track throughout exercise
 export interface ExerciseSessionData {
-  exerciseId: string;
+  exerciseId: ExerciseType;
   repsCompleted: number;
   targetReps: number;
   totalAnalysisCount: number;
@@ -807,7 +809,7 @@ export function LiveExerciseView({ exerciseId, targetReps, onComplete, onCancel 
           videoHeight={cameraFeedRef.current.videoElement.videoHeight || 720}
           videoElement={cameraFeedRef.current.videoElement}
           formIssues={formIssues}
-          exerciseType={exerciseId as 'pushup' | 'plank' | 'squat' | 'situp'}
+          exerciseType={exerciseId}
           className="z-[5]"
         />
       )}

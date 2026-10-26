@@ -7,7 +7,7 @@ import { CameraFeed, type CameraFeedHandle } from './CameraFeed';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
 import { ArrowLeft, SwitchCamera, User, Check, Circle } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { StickFigure } from './StickFigure';
 import { LivePoseOverlay } from './LivePoseOverlay';
 

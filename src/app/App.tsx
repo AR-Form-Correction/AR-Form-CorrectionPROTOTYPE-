@@ -8,10 +8,11 @@ import { LiveExerciseView, type ExerciseSessionData } from './components/LiveExe
 import { PostExerciseAnalysis } from './components/PostExerciseAnalysis';
 
 type AppState = 'home' | 'selection' | 'calibration' | 'repSelection' | 'walkthrough' | 'live' | 'analysis';
+type ExerciseType = 'pushup' | 'plank' | 'squat' | 'situp';
 
 export default function App() {
   const [currentState, setCurrentState] = useState<AppState>('home');
-  const [selectedExercise, setSelectedExercise] = useState<string>('');
+  const [selectedExercise, setSelectedExercise] = useState<ExerciseType>('pushup');
   const [targetReps, setTargetReps] = useState<number>(10);
   const [exerciseSessionData, setExerciseSessionData] = useState<ExerciseSessionData | null>(null);
 
@@ -20,7 +21,7 @@ export default function App() {
   };
 
   const handleSelectExercise = (exerciseId: string) => {
-    setSelectedExercise(exerciseId);
+    setSelectedExercise(exerciseId as ExerciseType);
     setCurrentState('calibration');
   };
 
@@ -49,7 +50,7 @@ export default function App() {
 
   const handleBackToSelection = () => {
     setCurrentState('selection');
-    setSelectedExercise('');
+    setSelectedExercise('pushup');
     setExerciseSessionData(null);
   };
 
