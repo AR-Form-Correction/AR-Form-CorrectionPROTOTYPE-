@@ -10,14 +10,34 @@ export type JointName = 'head' | 'neck' | 'leftShoulder' | 'rightShoulder' | 'le
   'leftHand' | 'rightHand' | 'spine' | 'hips' | 'leftHip' | 'rightHip' | 'leftKnee' | 'rightKnee' | 
   'leftFoot' | 'rightFoot';
 
+export type StickFigurePose =
+  | 'standing'
+  | 'pushup-up'
+  | 'pushup-down'
+  | 'plank'
+  | 'squat-up'
+  | 'squat-down'
+  | 'squat-up-side'
+  | 'squat-down-side'
+  | 'situp-up'
+  | 'situp-down'
+  | 'left-leg-raise'
+  | 'right-leg-raise'
+  | 'torso-bend'
+  | 'torso-pivot-left'
+  | 'torso-pivot-right'
+  | 'head-pivot-left'
+  | 'head-pivot-right'
+  | 't-pose';
+
 interface StickFigureProps {
-  pose: 'standing' | 'pushup-up' | 'pushup-down' | 'plank' | 'squat-up' | 'squat-down' | 'squat-up-side' | 'squat-down-side' | 'situp-up' | 'situp-down' | 'left-leg-raise' | 'right-leg-raise' | 'torso-bend' | 'torso-pivot-left' | 'torso-pivot-right' | 'head-pivot-left' | 'head-pivot-right' | 't-pose';
+  pose: StickFigurePose;
   showCorrect?: boolean;
   className?: string;
   jointStatus?: Partial<Record<JointName, boolean>>; // true = correct, false = incorrect
   highlightIncorrect?: boolean;
   transitionProgress?: number; // 0-1, for animating from standing to target pose
-  fromPose?: 'standing' | 'pushup-up' | 'pushup-down' | 'plank' | 'squat-up' | 'squat-down' | 'squat-up-side' | 'squat-down-side' | 'situp-up' | 'situp-down' | 'left-leg-raise' | 'right-leg-raise' | 'torso-bend' | 'torso-pivot-left' | 'torso-pivot-right' | 'head-pivot-left' | 'head-pivot-right' | 't-pose';
+  fromPose?: StickFigurePose;
 }
 
 export function StickFigure({ pose, showCorrect = true, className = '', jointStatus, highlightIncorrect = false, transitionProgress = 1, fromPose = 'standing' }: StickFigureProps) {

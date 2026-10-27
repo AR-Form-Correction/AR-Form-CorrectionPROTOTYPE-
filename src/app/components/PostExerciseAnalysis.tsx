@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
-import { StickFigure } from './StickFigure';
+import { StickFigure, type StickFigurePose } from './StickFigure';
 import { ArrowLeft, TrendingUp, AlertTriangle, CheckCircle2, RotateCcw } from 'lucide-react';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
@@ -228,6 +228,14 @@ export function PostExerciseAnalysis({ exerciseId, sessionData, onRetry, onHome 
     situp: 'Sit-Up'
   };
 
+  const displayPoseByExercise: Record<string, StickFigurePose> = {
+    pushup: 'pushup-down',
+    plank: 'plank',
+    squat: 'squat-down-side',
+    situp: 'situp-up',
+  };
+  const displayPose = displayPoseByExercise[exerciseId] ?? 'standing';
+
   const getScoreColor = (score: number) => {
     if (score >= 85) return 'text-green-600';
     if (score >= 70) return 'text-amber-600';
@@ -305,7 +313,7 @@ export function PostExerciseAnalysis({ exerciseId, sessionData, onRetry, onHome 
               </div>
               <div className="bg-green-50 rounded-lg p-8 flex items-center justify-center min-h-[400px]">
                 <StickFigure
-                  pose={exerciseId}
+                  pose={displayPose}
                   showCorrect={true}
                   className="w-full h-full max-w-sm"
                 />
@@ -323,7 +331,7 @@ export function PostExerciseAnalysis({ exerciseId, sessionData, onRetry, onHome 
               </div>
               <div className="bg-amber-50 rounded-lg p-8 flex items-center justify-center min-h-[400px]">
                 <StickFigure
-                  pose={exerciseId}
+                  pose={displayPose}
                   showCorrect={false}
                   className="w-full h-full max-w-sm"
                 />

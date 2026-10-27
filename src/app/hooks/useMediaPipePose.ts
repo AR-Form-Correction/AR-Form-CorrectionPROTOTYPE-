@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { PoseLandmarker, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-vision';
 
 export interface PoseLandmarks {
@@ -28,7 +28,7 @@ interface UseMediaPipePoseOptions {
 }
 
 export function useMediaPipePose(
-  videoRef: React.RefObject<HTMLVideoElement | null>,
+  getVideoElement: () => HTMLVideoElement | null,
   canvasRef: React.RefObject<HTMLCanvasElement | null>,
   options: UseMediaPipePoseOptions = {}
 ) {
@@ -37,7 +37,13 @@ export function useMediaPipePose(
   const [error, setError] = useState<string | null>(null);
   const poseLandmarkerRef = useRef<PoseLandmarker | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const isDetectingRef = useRef(false);
+  const optionsRef = useRef(options);
+  const getVideoElementRef = useRef(getVideoElement);
   const lastVideoTimeRef = useRef<number>(-1);
+
+  optionsRef.current = options;
+  getVideoElementRef.current = getVideoElement;
 
   // Initialize MediaPipe Pose
   useEffect(() => {
@@ -77,6 +83,10 @@ export function useMediaPipePose(
 
     return () => {
       mounted = false;
+      isDetectingRef.current = false;
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
       if (poseLandmarkerRef.current) {
         poseLandmarkerRef.current.close();
       }
@@ -84,7 +94,11 @@ export function useMediaPipePose(
   }, []);
 
   // Start detection loop
-  const startDetection = () => {
+  const startDetection = useCallback(() => {
+    if (isDetectingRef.current) {
+      return;
+    }
+
     if (!isReady) {
       console.warn('MediaPipe not initialized yet');
       return;
@@ -95,7 +109,7 @@ export function useMediaPipePose(
       return;
     }
 
-    if (!videoRef.current) {
+    if (!getVideoElementRef.current()) {
       console.warn('Video element not available');
       return;
     }
@@ -106,11 +120,14 @@ export function useMediaPipePose(
     }
 
     // Check if video has dimensions and is ready to play
-    const video = videoRef.current;
+    const video = getVideoElementRef.current();
+    if (!video) {
+      return;
+    }
     if (!video.videoWidth || !video.videoHeight || video.readyState < 2) {
       console.log('Video not ready yet, retrying in 200ms...');
       // Retry after a short delay
-      setTimeout(() => startDetection(), 200);
+      window.setTimeout(startDetection, 200);
       return;
     }
 
@@ -120,10 +137,11 @@ export function useMediaPipePose(
       readyState: video.readyState
     });
 
+    isDetectingRef.current = true;
     setIsDetecting(true);
 
     const detectPose = async () => {
-      const video = videoRef.current;
+      const video = getVideoElementRef.current();
       const canvas = canvasRef.current;
       const poseLandmarker = poseLandmarkerRef.current;
 
@@ -161,7 +179,7 @@ export function useMediaPipePose(
           ctx.clearRect(0, 0, canvas.width, canvas.height);
 
           // Draw landmarks if enabled
-          if (options.enableDrawing && results.landmarks && results.landmarks.length > 0) {
+          if (optionsRef.current.enableDrawing && results.landmarks && results.landmarks.length > 0) {
             const drawingUtils = new DrawingUtils(ctx);
             
             for (const landmark of results.landmarks) {
@@ -205,27 +223,28 @@ export function useMediaPipePose(
             rightAnkle: landmarks[28],
           };
 
-          options.onPoseDetected?.(poseLandmarks);
+          optionsRef.current.onPoseDetected?.(poseLandmarks);
         }
       } catch (err) {
         console.error('Pose detection error:', err);
       }
 
-      if (isDetecting) {
+      if (isDetectingRef.current) {
         animationFrameRef.current = requestAnimationFrame(detectPose);
       }
     };
 
     detectPose();
-  };
+  }, [canvasRef, isReady]);
 
-  const stopDetection = () => {
+  const stopDetection = useCallback(() => {
+    isDetectingRef.current = false;
     setIsDetecting(false);
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
     }
-  };
+  }, []);
 
   return {
     isReady,

@@ -20,12 +20,17 @@ export const CameraFeed = forwardRef<CameraFeedHandle, CameraFeedProps>(
   ({ onCameraReady, className = '', enableTestMode = false, facingMode = 'user', onCameraSwitch }, ref) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const onCameraReadyRef = useRef(onCameraReady);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [retryCount, setRetryCount] = useState(0);
   const [useTestMode, setUseTestMode] = useState(enableTestMode);
   const [permissionState, setPermissionState] = useState<string>('unknown');
   const [currentFacingMode, setCurrentFacingMode] = useState<'user' | 'environment'>(facingMode);
+
+  useEffect(() => {
+    onCameraReadyRef.current = onCameraReady;
+  }, [onCameraReady]);
 
   // Expose video element and switch camera function via ref
   useImperativeHandle(ref, () => ({
@@ -66,15 +71,36 @@ export const CameraFeed = forwardRef<CameraFeedHandle, CameraFeedProps>(
 
       console.log('Requesting camera access...');
 
-      // Request camera access with specific constraints
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: currentFacingMode,
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-        audio: false,
-      });
+      let stream: MediaStream;
+
+      try {
+        // Prefer the requested camera without requiring that facing mode.
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: currentFacingMode },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        });
+      } catch (preferredCameraError) {
+        const errorName = preferredCameraError instanceof Error ? preferredCameraError.name : '';
+        const canRetryWithoutPreference =
+          errorName === 'NotFoundError' ||
+          errorName === 'DevicesNotFoundError' ||
+          errorName === 'OverconstrainedError' ||
+          errorName === 'ConstraintNotSatisfiedError';
+
+        if (!canRetryWithoutPreference) {
+          throw preferredCameraError;
+        }
+
+        console.warn('Preferred camera unavailable; retrying with the browser default camera.');
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
+      }
 
       console.log('Camera access granted!', stream);
 
@@ -83,36 +109,45 @@ export const CameraFeed = forwardRef<CameraFeedHandle, CameraFeedProps>(
         videoRef.current.onloadedmetadata = () => {
           videoRef.current?.play();
           setIsLoading(false);
-          onCameraReady?.();
+          onCameraReadyRef.current?.();
         };
       }
 
       return stream;
     } catch (err) {
       // Check permission state after error
-      const permState = await checkPermissions();
+      await checkPermissions();
       
       // Provide user-friendly error messages
       if (err instanceof Error) {
         if (err.message === 'UNSUPPORTED') {
-          console.warn('⚠️ Camera API not supported - switching to test mode');
+          console.warn('Camera API not supported');
           setError('Camera API not supported. Please use a modern browser (Chrome, Edge, or Firefox).');
         } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-          // Automatically switch to test mode for iframe restrictions
-          console.log('📹 Camera blocked (iframe security) - auto-switching to test mode');
-          setUseTestMode(true);
-          setError(null);
-          setIsLoading(false);
-          onCameraReady?.();
-          return null;
-        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-          console.warn('⚠️ No camera found - switching to test mode');
-          setError('No camera found on this device.');
+          console.warn('Camera permission denied');
+          setError('Camera permission was denied. Allow camera access in Chrome settings, then try again.');
+        } else if (
+          err.name === 'NotFoundError' ||
+          err.name === 'DevicesNotFoundError' ||
+          err.name === 'OverconstrainedError' ||
+          err.name === 'ConstraintNotSatisfiedError'
+        ) {
+          console.warn('Chrome could not find an available video-input device');
+          const devices = navigator.mediaDevices.enumerateDevices
+            ? await navigator.mediaDevices.enumerateDevices()
+            : [];
+          const cameraCount = devices.filter(device => device.kind === 'videoinput').length;
+
+          setError(
+            cameraCount === 0
+              ? 'Camera permission is granted, but Chrome cannot see a camera device. Check Chrome’s selected camera, operating-system camera privacy settings, and whether this browser is running in a remote or virtual environment.'
+              : `Chrome found ${cameraCount} camera device${cameraCount === 1 ? '' : 's'}, but none could be started. Close other camera apps, check Chrome’s selected camera, then try again.`
+          );
         } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-          console.warn('⚠️ Camera in use - switching to test mode');
+          console.warn('Camera is already in use');
           setError('Camera is already in use by another application. Please close other apps and try again.');
         } else {
-          console.warn('⚠️ Camera error - switching to test mode:', err.message);
+          console.warn('Camera error:', err.message);
           setError(`Unable to access camera: ${err.message}`);
         }
       } else {
@@ -127,7 +162,7 @@ export const CameraFeed = forwardRef<CameraFeedHandle, CameraFeedProps>(
     if (useTestMode) {
       setIsLoading(false);
       setError(null);
-      onCameraReady?.();
+      onCameraReadyRef.current?.();
       return;
     }
 
@@ -150,7 +185,7 @@ export const CameraFeed = forwardRef<CameraFeedHandle, CameraFeedProps>(
         tracks.forEach(track => track.stop());
       }
     };
-  }, [retryCount, onCameraReady, useTestMode]);
+  }, [currentFacingMode, retryCount, useTestMode]);
 
   const handleRetry = () => {
     console.log('Retry button clicked');
@@ -162,7 +197,7 @@ export const CameraFeed = forwardRef<CameraFeedHandle, CameraFeedProps>(
     setUseTestMode(true);
     setError(null);
     setIsLoading(false);
-    onCameraReady?.();
+    onCameraReadyRef.current?.();
   };
 
   if (error) {
@@ -226,7 +261,7 @@ export const CameraFeed = forwardRef<CameraFeedHandle, CameraFeedProps>(
               <span className="font-semibold">Other Issues:</span>
               <br />• Close Zoom, Teams, other video apps
               <br />• Try different browser (Chrome recommended)
-              <br />• Figma iframe restrictions may apply
+              <br />• Camera access requires a secure context or localhost
               <br /><br />
               <span className="font-semibold">✨ Or click \"Use Test Mode\" to continue!</span>
             </p>
@@ -256,7 +291,7 @@ export const CameraFeed = forwardRef<CameraFeedHandle, CameraFeedProps>(
               <VideoOff className="w-24 h-24 text-gray-500 mx-auto mb-4" />
             </motion.div>
             <div className="bg-purple-500/20 border border-purple-400 rounded-lg px-6 py-3">
-              <p className="text-purple-300 text-sm">📹 Test Mode Active</p>
+              <p className="text-purple-300 text-sm">Test Mode Active</p>
               <p className="text-gray-400 text-xs mt-1">Simulated camera view</p>
             </div>
           </div>
@@ -269,7 +304,7 @@ export const CameraFeed = forwardRef<CameraFeedHandle, CameraFeedProps>(
             className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-black/80 border border-purple-400/50 rounded-xl px-6 py-3 max-w-md"
           >
             <p className="text-purple-200 text-xs text-center">
-              <span className="font-semibold">ℹ️ Camera blocked by iframe security</span>
+              <span className="font-semibold">Camera simulation is active</span>
               <br />
               Real camera will work when exported to localhost or deployed.
               <br />

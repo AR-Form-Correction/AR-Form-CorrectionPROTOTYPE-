@@ -101,6 +101,7 @@ export function CalibrationView({ onComplete, onBack }: CalibrationViewProps) {
   const [isInPosition, setIsInPosition] = useState(false);
   const [showLockedEffect, setShowLockedEffect] = useState(false);
   const [cameraFacingMode, setCameraFacingMode] = useState<'user' | 'environment'>('user'); // Default to front camera
+  const [cameraReady, setCameraReady] = useState(false);
   
   const cameraFeedRef = useRef<CameraFeedHandle>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -108,7 +109,7 @@ export function CalibrationView({ onComplete, onBack }: CalibrationViewProps) {
 
   // MediaPipe pose detection hook
   const { isReady: mediaPipeReady, startDetection, stopDetection } = useMediaPipePose(
-    { current: cameraFeedRef.current?.videoElement || null },
+    () => cameraFeedRef.current?.videoElement || null,
     canvasRef,
     {
       onPoseDetected: (landmarks) => {
@@ -120,8 +121,9 @@ export function CalibrationView({ onComplete, onBack }: CalibrationViewProps) {
 
   // Start MediaPipe when calibration begins (for both stages)
   useEffect(() => {
-    if (mediaPipeReady && cameraFeedRef.current?.videoElement) {
+    if (cameraReady && mediaPipeReady && cameraFeedRef.current?.videoElement) {
       const video = cameraFeedRef.current.videoElement;
+      let retryTimer: number | undefined;
       
       // Wait for video to be fully ready with better checks
       const checkVideoReady = () => {
@@ -134,18 +136,24 @@ export function CalibrationView({ onComplete, onBack }: CalibrationViewProps) {
             videoWidth: video.videoWidth,
             videoHeight: video.videoHeight
           });
-          setTimeout(checkVideoReady, 300);
+          retryTimer = window.setTimeout(checkVideoReady, 300);
         }
       };
       
       // Initial delay to let camera stabilize
       const timer = setTimeout(checkVideoReady, 800);
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(timer);
+        if (retryTimer) {
+          clearTimeout(retryTimer);
+        }
+        stopDetection();
+      };
     }
     return () => {
       stopDetection();
     };
-  }, [mediaPipeReady, startDetection, stopDetection]);
+  }, [cameraReady, mediaPipeReady, startDetection, stopDetection]);
 
   // Real distance detection using MediaPipe pose landmarks
   useEffect(() => {
@@ -356,10 +364,15 @@ export function CalibrationView({ onComplete, onBack }: CalibrationViewProps) {
   return (
     <div className="h-screen max-h-screen bg-black relative overflow-hidden">
       {/* Simulated Camera Feed */}
-      <CameraFeed className="absolute inset-0" ref={cameraFeedRef} facingMode={cameraFacingMode} />
+      <CameraFeed
+        className="absolute inset-0"
+        ref={cameraFeedRef}
+        facingMode={cameraFacingMode}
+        onCameraReady={() => setCameraReady(true)}
+      />
 
       {/* Live Pose Overlay - Real-time skeleton tracking */}
-      {cameraFeedRef.current?.videoElement && (
+      {cameraReady && cameraFeedRef.current?.videoElement && (
         <LivePoseOverlay
           landmarks={detectedLandmarks}
           videoWidth={cameraFeedRef.current.videoElement.videoWidth || 1280}

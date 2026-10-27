@@ -212,6 +212,7 @@ export function LiveExerciseView({ exerciseId, targetReps, onComplete, onCancel 
   const [lastAnalysisTime, setLastAnalysisTime] = useState(0);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [cameraFacingMode, setCameraFacingMode] = useState<'user' | 'environment'>('user'); // Default to front camera
+  const [cameraReady, setCameraReady] = useState(false);
   const [detectedLandmarks, setDetectedLandmarks] = useState<PoseLandmarks | null>(null);
   const [formIssues, setFormIssues] = useState<FormIssues>({});
   const [distanceStatus, setDistanceStatus] = useState<'optimal' | 'too-close' | 'too-far'>('optimal');
@@ -270,7 +271,7 @@ export function LiveExerciseView({ exerciseId, targetReps, onComplete, onCancel 
 
   // MediaPipe pose detection hook
   const { isReady: mediaPipeReady, startDetection, stopDetection } = useMediaPipePose(
-    { current: cameraFeedRef.current?.videoElement || null },
+    () => cameraFeedRef.current?.videoElement || null,
     canvasRef,
     {
       onPoseDetected: (landmarks) => {
@@ -283,8 +284,9 @@ export function LiveExerciseView({ exerciseId, targetReps, onComplete, onCancel 
 
   // Start MediaPipe when recording begins and camera is ready
   useEffect(() => {
-    if (isRecording && mediaPipeReady && cameraFeedRef.current?.videoElement) {
+    if (isRecording && cameraReady && mediaPipeReady && cameraFeedRef.current?.videoElement) {
       const video = cameraFeedRef.current.videoElement;
+      let retryTimer: number | undefined;
       
       // Wait for video to be fully ready with better checks
       const checkVideoReady = () => {
@@ -297,18 +299,24 @@ export function LiveExerciseView({ exerciseId, targetReps, onComplete, onCancel 
             videoWidth: video.videoWidth,
             videoHeight: video.videoHeight
           });
-          setTimeout(checkVideoReady, 300);
+          retryTimer = window.setTimeout(checkVideoReady, 300);
         }
       };
       
       // Initial delay to let camera stabilize
       const timer = setTimeout(checkVideoReady, 800);
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(timer);
+        if (retryTimer) {
+          clearTimeout(retryTimer);
+        }
+        stopDetection();
+      };
     }
     return () => {
       stopDetection();
     };
-  }, [isRecording, mediaPipeReady, startDetection, stopDetection]);
+  }, [isRecording, cameraReady, mediaPipeReady, startDetection, stopDetection]);
 
   // Countdown before starting
   useEffect(() => {
@@ -798,11 +806,12 @@ export function LiveExerciseView({ exerciseId, targetReps, onComplete, onCancel 
         className="absolute inset-0" 
         ref={cameraFeedRef} 
         facingMode={cameraFacingMode}
+        onCameraReady={() => setCameraReady(true)}
         onCameraSwitch={(newMode) => setCameraFacingMode(newMode)}
       />
 
       {/* Live Pose Overlay - Real-time skeleton tracking with form feedback */}
-      {cameraFeedRef.current?.videoElement && (
+      {cameraReady && cameraFeedRef.current?.videoElement && (
         <LivePoseOverlay
           landmarks={detectedLandmarks}
           videoWidth={cameraFeedRef.current.videoElement.videoWidth || 1280}
